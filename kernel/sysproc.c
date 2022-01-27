@@ -38,6 +38,8 @@ sys_wait(void)
   return wait(p);
 }
 
+// 懒加载，在这里仅仅改变进程记录的内存大小的值
+// 而并不实际分配
 uint64
 sys_sbrk(void)
 {
@@ -47,8 +49,15 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+  if (n < 0) {
+    if(growproc(n) < 0)
+      return -1;
+  }else{
+    if(addr + n >= MAXVA){
+      return -1;
+    }
+    myproc()->sz = addr + n;
+  }
   return addr;
 }
 

@@ -78,8 +78,11 @@ kvminithart()
 static pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
-  if(va >= MAXVA)
+  if(va >= MAXVA){
+    printf("[Kernel] walk: va: %p\n", va);
     panic("walk");
+    // return 0;
+  }
 
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
@@ -160,6 +163,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
+  
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
@@ -187,19 +191,33 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free)
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
-    if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
-    if((*pte & PTE_V) == 0){
-      printf("va=%p pte=%p\n", a, *pte);
-      panic("uvmunmap: not mapped");
+    if(a >= MAXVA){
+      break;
     }
-    if(PTE_FLAGS(*pte) == PTE_V)
-      panic("uvmunmap: not a leaf");
-    if(do_free){
+    int lazy_free = 0;
+    if((pte = walk(pagetable, a, 0)) == 0){
+      lazy_free = 1;
+    }
+    if(!lazy_free){
+      if((*pte & PTE_V) == 0 ){
+        lazy_free = 1;
+        // printf("va=%p pte=%p\n", a, *pte);
+        // panic("uvmunmap: not mapped");
+      }
+    }
+    if(!lazy_free){
+      if(PTE_FLAGS(*pte) == PTE_V){
+        // panic("uvmunmap: not a leaf");
+        lazy_free = 1;
+      }
+    }
+    if(do_free && !lazy_free){
       pa = PTE2PA(*pte);
       kfree((void*)pa);
     }
-    *pte = 0;
+    if(!lazy_free){
+      *pte = 0;
+    }
     if(a == last)
       break;
     a += PGSIZE;
@@ -295,6 +313,7 @@ freewalk(pagetable_t pagetable)
       freewalk((pagetable_t)child);
       pagetable[i] = 0;
     } else if(pte & PTE_V){
+      // 必须保证最底层的页表项是无效的
       panic("freewalk: leaf");
     }
   }
@@ -305,7 +324,8 @@ freewalk(pagetable_t pagetable)
 // then free page-table pages.
 void
 uvmfree(pagetable_t pagetable, uint64 sz)
-{
+{ 
+  // 首先对页表解除映射，随后释放页表
   uvmunmap(pagetable, 0, sz, 1);
   freewalk(pagetable);
 }
@@ -325,10 +345,15 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+    if((pte = walk(old, i, 0)) == 0){
+      continue;
+      // panic("uvmcopy: pte should exist");
+    }
+    if((*pte & PTE_V) == 0){
+      // printf("[Kernel] size: %p, addr: %p\n", sz, i);
+      // panic("uvmcopy: page not present");
+      continue;
+    }
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)

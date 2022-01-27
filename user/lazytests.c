@@ -13,6 +13,7 @@
 void
 sparse_memory(char *s)
 {
+  // printf("[User] sparse_memory.\n");
   char *i, *prev_end, *new_end;
   
   prev_end = sbrk(REGION_SZ);
@@ -20,10 +21,14 @@ sparse_memory(char *s)
     printf("sbrk() failed\n");
     exit(1);
   }
+  // printf("[User] lazytests: prev_end: 0x%x.\n", prev_end);
   new_end = prev_end + REGION_SZ;
 
-  for (i = prev_end + PGSIZE; i < new_end; i += 64 * PGSIZE)
+  // printf("[User] lazytests: new_end: 0x%x\n", new_end);
+  for (i = prev_end + PGSIZE; i < new_end; i += 64 * PGSIZE){
+    // printf("[User] lazytests: addr: 0x%x\n", i);
     *(char **)i = i;
+  }
 
   for (i = prev_end + PGSIZE; i < new_end; i += 64 * PGSIZE) {
     if (*(char **)i != i) {
@@ -82,6 +87,7 @@ oom(char *s)
   if((pid = fork()) == 0){
     m1 = 0;
     while((m2 = malloc(4096*4096)) != 0){
+      printf("[User] lazytests: m2: %p\n", m2);
       *(char**)m2 = m1;
       m1 = m2;
     }

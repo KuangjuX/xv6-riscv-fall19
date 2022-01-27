@@ -498,8 +498,21 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
     bp = bread(ip->dev, bmap(ip, off/BSIZE));
     m = min(n - tot, BSIZE - off%BSIZE);
     if(either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
-      brelse(bp);
-      break;
+      // brelse(bp);
+      // break;
+      uint64 addr = PGROUNDDOWN(src);
+      void* page = kalloc();
+      if(mappages(
+        myproc()->pagetable,
+        addr,
+        PGSIZE,
+        (uint64)page,
+        PTE_W|PTE_X|PTE_R|PTE_U
+      ) != 0){
+        kfree(page);
+        uvmdealloc(myproc()->pagetable, addr, addr + PGSIZE);
+      }
+      either_copyin(bp->data + (off % BSIZE), user_src, src, m);
     }
     log_write(bp);
     brelse(bp);

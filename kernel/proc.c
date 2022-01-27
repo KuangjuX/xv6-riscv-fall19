@@ -179,8 +179,9 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, PGSIZE, 0);
   uvmunmap(pagetable, TRAPFRAME, PGSIZE, 0);
-  if(sz > 0)
+  if(sz > 0){
     uvmfree(pagetable, sz);
+  }
 }
 
 // a user program that calls exec("/init")
@@ -208,7 +209,8 @@ userinit(void)
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
-
+  // p->is_sbrk = 0;
+  // p->allocated_size = 0;
   // prepare for the very first "return" from kernel to user.
   p->tf->epc = 0;      // user program counter
   p->tf->sp = PGSIZE;  // user stack pointer
@@ -256,11 +258,15 @@ fork(void)
   }
 
   // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  // uvmcopy 会检查页表项是否有效，懒加载的时候需要
+  // 去处理这些无效的页表不去映射
+  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
     freeproc(np);
     release(&np->lock);
     return -1;
   }
+  // np->is_sbrk = p->is_sbrk;
+  // np->allocated_size = p->allocated_size;
   np->sz = p->sz;
 
   np->parent = p;
