@@ -23,6 +23,18 @@ struct {
   struct run *freelist;
 } kmem;
 
+// 用来记录页引用
+// 32768 = 128 * 1024KB / 4KB
+uint16 page_refs[32768];
+
+void unpin_page(uint32 index){
+  page_refs[index]--;
+}
+
+uint16 get_page_ref(uint32 index) {
+  return page_refs[index];
+}
+
 void
 kinit()
 {
@@ -35,8 +47,12 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  uint64 i = 0;
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE){
     kfree(p);
+    // 初始化引用计数
+    page_refs[i++] = 0;
+  }
 }
 
 // Free the page of physical memory pointed at by v,
@@ -76,7 +92,11 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
+  if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
+    // 将引用计数加一
+    uint32 index = ((uint64)r - PGROUNDUP((uint64)end)) / PGSIZE;
+    page_refs[index]++;
+  }
   return (void*)r;
 }

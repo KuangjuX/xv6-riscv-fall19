@@ -163,8 +163,10 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
-      panic("remap");
+    if(*pte & PTE_V){
+      // panic("remap");
+      // Copy-On-Write 需要进行重新映射，因此不需要 panic
+    }
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -316,34 +318,58 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
+// 在 Copy On Write 中仅仅为子进程创建一个页表，并
+// 将其映射到父进程的页表中，将所有页表项设置为不可写
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
-  pte_t *pte;
-  uint64 pa, i;
-  uint flags;
-  char *mem;
+  // pte_t *pte;
+  // uint64 pa, i;
+  // uint flags;
 
-  for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+  // for(i = 0; i < sz; i += PGSIZE){
+  //   if((pte = walk(old, i, 0)) == 0)
+  //     panic("uvmcopy: pte should exist");
+  //   if((*pte & PTE_V) == 0)
+  //     panic("uvmcopy: page not present");
+  //   // 获取第0级的页表项
+  //   // 将页表项的 Write Bit 清零
+  //   // | ---- 44 bits------ | --- 10 bits ---- |
+  //   // |        PPN         |      Flags       |
+  //   *pte &= ~(PTE_W);
+  //   pa = PTE2PA(*pte);
+  //   flags = PTE_FLAGS(*pte);
+  //   // 代替重新分配页面，这里直接将父进程页表映射到子进程中
+  //   if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
+  //     // 这里不需要释放内存
+  //     // kfree(mem);
+  //     goto err;
+  //   }
+  // }
+  
+  // 将父进程页表内容拷贝到子进程中
+  memmove((void*)new, (void*)old, PGSIZE);
+  // 将所有页表项设置为不可写,这里要模拟一遍页表翻译过程
+  pagetable_t pgt = old;
+  // printf("[Kernel] uvmcopy: sz: %p\n", sz);
+  for(uint64 vaddr = 0; vaddr < sz; vaddr += PGSIZE) {
+    printf("[Kernel] uvmcopy: vaddr: %p\n", vaddr);
+    for(int level = 2; level >= 0; level--){
+      // 获取到每一级的页表项
+      pte_t* pte = &pgt[PX(level, vaddr)];
+      // 清除写标志位
+      *pte &= ~(PTE_W);
+      if(*pte & PTE_V) {
+        // 获取下一级页表
+        pgt = (pagetable_t)PTE2PA(*pte);
+      }
     }
   }
   return 0;
 
- err:
-  uvmunmap(new, 0, i, 1);
-  return -1;
+//  err:
+//   uvmunmap(new, 0, vaddr, 1);
+//   return -1;
 }
 
 // mark a PTE invalid for user access.

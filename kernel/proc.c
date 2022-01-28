@@ -256,6 +256,7 @@ fork(void)
   }
 
   // Copy user memory from parent to child.
+  // fork 的时候只需要将父进程的物理页映射到子进程即可
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
