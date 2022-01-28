@@ -70,12 +70,11 @@ usertrap(void)
     // ok
   } else {
     if(scause == 0xf || scause == 0xd) {
+      // 如果读取的是用户栈下的保护页则不需要进行分配
       uint64 err_addr = PGROUNDDOWN(r_stval());
       uint64 new_addr = err_addr + PGSIZE;
-      // printf("[Kernel] new_addr: %p, MAXVA: %p\n", new_addr, (uint64)MAXVA);
-      if(err_addr > p->sz || new_addr >= MAXVA) {
-        // 此时应当直接杀死
-        // printf("[Kernel] user_trap: error address is higher than allocated mamory.\n");
+      
+      if(err_addr > p->sz || new_addr >= MAXVA || err_addr <= p->tf->sp) {
         p->killed = 1;
       }else{
         pagetable_t pgt = p->pagetable;
@@ -86,7 +85,6 @@ usertrap(void)
         if(page == 0){
           uvmdealloc(pgt, err_addr, new_addr);
           p->killed = 1;
-          // panic("usertrap(): Fail to allocate memory");
         }else {
           if(mappages(
             pgt,
@@ -95,7 +93,7 @@ usertrap(void)
             (uint64)page,
             PTE_W|PTE_X|PTE_R|PTE_U
           ) != 0){
-            printf("[Kernel] trap: pa: 0x%x", (uint64)page);
+            // printf("[Kernel] trap: pa: %p\n", (uint64)page);
             kfree(page);
             uvmdealloc(pgt, err_addr, new_addr);
           }

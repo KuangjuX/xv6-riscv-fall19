@@ -87,7 +87,6 @@ oom(char *s)
   if((pid = fork()) == 0){
     m1 = 0;
     while((m2 = malloc(4096*4096)) != 0){
-      printf("[User] lazytests: m2: %p\n", m2);
       *(char**)m2 = m1;
       m1 = m2;
     }

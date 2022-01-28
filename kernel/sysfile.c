@@ -460,6 +460,7 @@ sys_pipe(void)
   int fd0, fd1;
   struct proc *p = myproc();
 
+  // 获取地址
   if(argaddr(0, &fdarray) < 0)
     return -1;
   if(pipealloc(&rf, &wf) < 0)
@@ -474,11 +475,32 @@ sys_pipe(void)
   }
   if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
      copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
-    p->ofile[fd0] = 0;
-    p->ofile[fd1] = 0;
-    fileclose(rf);
-    fileclose(wf);
-    return -1;
+    // p->ofile[fd0] = 0;
+    // p->ofile[fd1] = 0;
+    // fileclose(rf);
+    // fileclose(wf);
+    // return -1;
+    if(fdarray < MAXVA){
+      void* page = kalloc();
+      if(mappages(
+        myproc()->pagetable,
+        fdarray,
+        PGSIZE,
+        (uint64)page,
+        PTE_W|PTE_X|PTE_R|PTE_U
+      ) != 0){
+        kfree(page);
+        uvmdealloc(myproc()->pagetable, fdarray, fdarray + PGSIZE);
+      }
+      copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0));
+      copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1));
+    }else{
+      p->ofile[fd0] = 0;
+      p->ofile[fd1] = 0;
+      fileclose(rf);
+      fileclose(wf);
+      return -1;
+    }
   }
   return 0;
 }
