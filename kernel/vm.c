@@ -359,6 +359,8 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       pte_t* pte = &pgt[PX(level, vaddr)];
       // 清除写标志位
       *pte &= ~(PTE_W);
+      // 将页表项加上 COW 标识符
+      *pte |= PTE_COW;
       if(*pte & PTE_V) {
         // 获取下一级页表
         pgt = (pagetable_t)PTE2PA(*pte);

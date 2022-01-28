@@ -181,46 +181,6 @@ kerneltrap()
     panic("kerneltrap: interrupts enabled");
 
   which_dev = devintr();
-  // if(scause == 0xf || scause == 0xd){
-  //   // 发生页错误，此时应当分配页进行重新映射，并添加写
-  //   // 标志位
-  //   // 获取发生页错误的虚拟地址
-  //   uint64 err_vaddr = PGROUNDDOWN(r_stval());
-  //   // 根据发生错误的虚拟地址计算索引并减少引用次数
-  //   uint32 index = (err_vaddr - PGROUNDUP((uint64)end)) / PGSIZE;
-  //   unpin_page(index);
-  //   uint16 refs = get_page_ref(index);
-    
-  //   // 对子进程/父进程进行重新映射, 并添加写标志位
-  //   // 获取出现页错误的物理地址
-  //   uint64 pa = walkaddr(myproc()->pagetable, err_vaddr);
-  //   // 分配一块新的物理页，并将数据拷贝到新分配中的页中
-  //   char* page = kalloc();
-  //   if(page == 0){
-  //     panic("[Kernel] kerneltrap: Fail to allocate physical page.\n");
-  //     // myproc()->killed = 1;
-  //   }else{
-  //     // 当拿到发生页错误所在的物理地址时需要进行重新映射
-  //     pte_t* old_pte = (pte_t*)PA2PTE(pa);
-  //     uint64 flags = PTE_FLAGS((uint64)old_pte) | PTE_W;
-  //     // 对发生错误的虚拟地址重新进行映射
-  //     if(mappages(
-  //       myproc()->pagetable, err_vaddr, 
-  //       PGSIZE, (uint64)page, flags
-  //       ) != 0){
-  //         // myproc()->killed = 1;
-  //         panic("[Kernel] kerneltrap: Fail to map.\n");
-  //       }
-  //     if(refs == 0){
-  //       // 当引用数减少为0的时候需要去释放页内存
-  //       kfree((void*)pa);
-  //     }
-  //   }
-  // }else if(which_dev == 0){
-  //   printf("scause %p\n", scause);
-  //   printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
-  //   panic("kerneltrap");
-  // }
   if(which_dev == 0){
       printf("scause %p\n", scause);
       printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
