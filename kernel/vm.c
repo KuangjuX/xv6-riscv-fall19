@@ -95,6 +95,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   return &pagetable[PX(0, va)];
 }
 
+
 // Look up a virtual address, return the physical address,
 // or 0 if not mapped.
 // Can only be used to look up user pages.
@@ -348,25 +349,30 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   // }
   
   // 将父进程页表内容拷贝到子进程中
-  memmove((void*)new, (void*)old, PGSIZE);
+  memmove((void*)new, (const void*)old, PGSIZE);
   // 将所有页表项设置为不可写,这里要模拟一遍页表翻译过程
-  pagetable_t pgt = old;
-  // printf("[Kernel] uvmcopy: sz: %p\n", sz);
   for(uint64 vaddr = 0; vaddr < sz; vaddr += PGSIZE) {
-    printf("[Kernel] uvmcopy: vaddr: %p\n", vaddr);
+    pagetable_t pgt = old;
     for(int level = 2; level >= 0; level--){
       // 获取到每一级的页表项
       pte_t* pte = &pgt[PX(level, vaddr)];
+      // printf("[Kernel] uvmcopy: vaddr: %p, pte: %p, level: %d\n", vaddr, (uint64)pte, level);
       // 清除写标志位
-      *pte &= ~(PTE_W);
-      // 将页表项加上 COW 标识符
-      *pte |= PTE_COW;
+      if(!(*pte & PTE_COW)) {
+        *pte |= PTE_COW;
+        *pte &= ~(PTE_W);
+        // 将页表项加上 COW 标识符
+      }
       if(*pte & PTE_V) {
         // 获取下一级页表
         pgt = (pagetable_t)PTE2PA(*pte);
+      }else{
+        printf("[Kernel] uvmcopy: PTE is invalid.\n");
+        break;
       }
     }
   }
+  
   return 0;
 
 //  err:

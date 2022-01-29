@@ -71,8 +71,12 @@ usertrap(void)
     // 标志位
     // 获取发生页错误的虚拟地址
     uint64 err_vaddr = PGROUNDDOWN(r_stval());
+    uint64 err_paddr = walkaddr(p->pagetable, err_vaddr);
+    printf("[Kernel] usertrap: proc pid: %d\n", p->pid);
+    printf("[Kernel] usertrap: err_vaddr: %p\n", err_vaddr);
     // 根据发生错误的虚拟地址计算索引并减少引用次数
-    uint32 index = (err_vaddr - PGROUNDUP((uint64)end)) / PGSIZE;
+    uint32 index = (err_paddr - PGROUNDUP((uint64)end)) / PGSIZE;
+    printf("[Kernel] err_paddr: %p, start: %p, index: %d\n", err_paddr, PGROUNDUP((uint64)end), index);
     unpin_page(index);
     uint16 refs = get_page_ref(index);
     
@@ -87,7 +91,10 @@ usertrap(void)
     }else{
       // 当拿到发生页错误所在的物理地址时需要进行重新映射
       pte_t* old_pte = (pte_t*)PA2PTE(pa);
-      uint64 flags = PTE_FLAGS((uint64)old_pte) | PTE_W;
+      uint64 flags = ((PTE_FLAGS((uint64)old_pte)) | (PTE_W)) & (~PTE_COW);
+      // 将原来的数据拷贝到新分配的页中
+      void* old_page = (void*)PTE2PA((uint64)old_pte);
+      memmove(page, old_page, PGSIZE);
       // 对发生错误的虚拟地址重新进行映射
       if(mappages(
         p->pagetable, err_vaddr, 
