@@ -109,12 +109,18 @@ walkaddr(pagetable_t pagetable, uint64 va)
     return 0;
 
   pte = walk(pagetable, va, 0);
-  if(pte == 0)
+  if(pte == 0){
+    printf("[Kernel] walkaddr: pte is 0\n");
     return 0;
-  if((*pte & PTE_V) == 0)
+  }
+  if((*pte & PTE_V) == 0){
+    printf("[Kernel] walkaddr: PTE_V.\n");
     return 0;
-  if((*pte & PTE_U) == 0)
+  }
+  if((*pte & PTE_U) == 0){
+    printf("[Kernel] walkaddr: PTE_U.\n");
     return 0;
+  }
   pa = PTE2PA(*pte);
   return pa;
 }
@@ -164,10 +170,10 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V){
-      // panic("remap");
-      // Copy-On-Write 需要进行重新映射，因此不需要 panic
-    }
+    // if(*pte & PTE_V){
+    //   // panic("remap");
+    //   // Copy-On-Write 需要进行重新映射，因此不需要 panic
+    // }
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
