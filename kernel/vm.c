@@ -324,60 +324,30 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
-  // pte_t *pte;
-  // uint64 pa, i;
-  // uint flags;
-
-  // for(i = 0; i < sz; i += PGSIZE){
-  //   if((pte = walk(old, i, 0)) == 0)
-  //     panic("uvmcopy: pte should exist");
-  //   if((*pte & PTE_V) == 0)
-  //     panic("uvmcopy: page not present");
-  //   // 获取第0级的页表项
-  //   // 将页表项的 Write Bit 清零
-  //   // | ---- 44 bits------ | --- 10 bits ---- |
-  //   // |        PPN         |      Flags       |
-  //   *pte &= ~(PTE_W);
-  //   pa = PTE2PA(*pte);
-  //   flags = PTE_FLAGS(*pte);
-  //   // 代替重新分配页面，这里直接将父进程页表映射到子进程中
-  //   if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
-  //     // 这里不需要释放内存
-  //     // kfree(mem);
-  //     goto err;
-  //   }
-  // }
-  
   // 将父进程页表内容拷贝到子进程中
-  memmove((void*)new, (const void*)old, PGSIZE);
+  // memmove((void*)new, (const void*)old, PGSIZE);
   // 将所有页表项设置为不可写,这里要模拟一遍页表翻译过程
   for(uint64 vaddr = 0; vaddr < sz; vaddr += PGSIZE) {
-    pagetable_t pgt = old;
-    for(int level = 2; level >= 0; level--){
-      // 获取到每一级的页表项
-      pte_t* pte = &pgt[PX(level, vaddr)];
-      // printf("[Kernel] uvmcopy: vaddr: %p, pte: %p, level: %d\n", vaddr, (uint64)pte, level);
-      // 清除写标志位
-      if(!(*pte & PTE_COW)) {
-        *pte |= PTE_COW;
-        *pte &= ~(PTE_W);
-        // 将页表项加上 COW 标识符
-      }
-      if(*pte & PTE_V) {
-        // 获取下一级页表
-        pgt = (pagetable_t)PTE2PA(*pte);
-      }else{
-        printf("[Kernel] uvmcopy: PTE is invalid.\n");
-        break;
-      }
+    // 我们只需要将最低级的页表加上 COW 标识符
+    // 并擦去写标志位即可
+    pte_t* pte = walk(old, vaddr, 0);
+    uint64 pa = (uint64)PTE2PA((uint64)pte);
+    uint64 flags = PTE_FLAGS((uint64)pte);
+    if(mappages(new, vaddr, PGSIZE, pa, flags) != 0){
+      panic("[Kernel] uvmcopy: fail to copy parent physical address.\n");
     }
+    if(pte == 0){
+      panic("[Kernel] uvmcopy: pte should exist.\n");
+    }
+    if(!(*pte & PTE_COW)) {
+        // 将页表项加上 COW 标识符
+        *pte |= PTE_COW;
+        // 清除写标志位
+        *pte &= ~(PTE_W);
+      }
   }
   
   return 0;
-
-//  err:
-//   uvmunmap(new, 0, vaddr, 1);
-//   return -1;
 }
 
 // mark a PTE invalid for user access.

@@ -250,7 +250,6 @@ fork(void)
   struct proc *np;
   struct proc *p = myproc();
 
-  printf("[Kernel] fork\n");
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
@@ -287,6 +286,7 @@ fork(void)
 
   release(&np->lock);
 
+  printf("[Kernel] fork: pid: %d\n", pid);
   return pid;
 }
 

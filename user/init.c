@@ -22,12 +22,13 @@ main(void)
   for(;;){
     printf("init: starting sh\n");
     pid = fork();
-    printf("[User] fork.\n");
+    printf("[User] init: fork success.\n");
     if(pid < 0){
       printf("init: fork failed\n");
       exit(1);
     }
     if(pid == 0){
+      printf("[User] init: first child process.\n");
       exec("sh", argv);
       printf("init: exec sh failed\n");
       exit(1);
