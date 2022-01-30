@@ -99,7 +99,20 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
 
 // 地址翻译
 pte_t* translate(pagetable_t pagetable, uint64 va) {
-    return walk(pagetable, va, 0);
+  pte_t* pte = walk(pagetable, va, 0);
+  if(pte == 0){
+    printf("[Kernel] walkaddr: pte is 0\n");
+    return 0;
+  }
+  if((*pte & PTE_V) == 0){
+    printf("[Kernel] walkaddr: PTE_V.\n");
+    return 0;
+  }
+  if((*pte & PTE_U) == 0){
+    printf("[Kernel] walkaddr: PTE_U.\n");
+    return 0;
+  }
+  return pte;
 }
 
 
@@ -177,10 +190,11 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    // if(*pte & PTE_V){
-    //   // panic("remap");
-    //   // Copy-On-Write 需要进行重新映射，因此不需要 panic
-    // }
+    if(*pte & PTE_V){
+      // panic("remap");
+      // Copy-On-Write 需要进行重新映射，因此不需要 panic
+      printf("[Kernel] mappages: remap.\n");
+    }
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -345,7 +359,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     extern char end[];
     pte_t* pte = walk(old, vaddr, 0);
     uint64 pa = (uint64)PTE2PA((uint64)(*pte));
-    uint32 index = (pa - PGROUNDDOWN((uint64)end)) / PGSIZE;
+    uint32 index = (pa - PGROUNDUP((uint64)end)) / PGSIZE;
     pin_page(index);
     uint64 flags = (PTE_FLAGS((uint64)(*pte)) | PTE_COW) & ~PTE_W;
     if(mappages(new, vaddr, PGSIZE, pa, flags) != 0){
@@ -398,22 +412,17 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     }
     uint64 pa = PTE2PA((uint64)(*pte));
     if(*pte & PTE_COW){
+      printf("[Kernel] copyout: va: %p\n", va0);
       char* page = kalloc();
       if(page == 0){
         panic("[Kernel] uvmcopy: fail to allocate page.\n");
       }else{
         uint64 flags = (PTE_FLAGS((uint64)(*pte)) | PTE_W) & ~PTE_COW;
-        memmove(page, (char*)pa, PGSIZE);
-        if(mappages(myproc()->pagetable, va0, PGSIZE, (uint64)page, flags) != 0){
-          panic("[Kernel] uvmcopy: Fail to map pages.\n");
-        }
-        extern char end[];
-        uint32 index = (pa - PGROUNDDOWN((uint64)end)) / PGSIZE;
-        unpin_page(index);
-        uint16 refs = get_page_ref(index);
-        if(refs == 0){
-          kfree((void*)pa);
-        }
+        memmove((char*)page, (char*)pa, PGSIZE);
+        uvmunmap(pagetable, va0, PGSIZE, 1);
+        *pte = PA2PTE((uint64)page) | flags;
+        // kfree((void*)pa);
+        pa = (uint64)page;
       }
     }
     n = PGSIZE - (dstva - va0);

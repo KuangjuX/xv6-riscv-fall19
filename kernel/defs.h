@@ -64,7 +64,7 @@ void            kfree(void *);
 void            kinit();
 void            unpin_page(uint32 index);
 void            pin_page(uint32 index);
-uint16          get_page_ref(uint32 index);
+int             get_page_ref(uint index);
 
 // log.c
 void            initlog(int, struct superblock*);

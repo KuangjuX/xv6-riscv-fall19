@@ -24,18 +24,22 @@ struct {
 } kmem;
 
 // 用来记录页引用
-// 32768 = 128 * 1024KB / 4KB
-uint16 page_refs[32768];
+uint page_refs[PHYSTOP >> 12];
+struct spinlock refs_lock;
 
 void pin_page(uint32 index){
+  acquire(&refs_lock);
   page_refs[index]++;
+  release(&refs_lock);
 }
 
 void unpin_page(uint32 index){
+  acquire(&refs_lock);
   page_refs[index]--;
+  release(&refs_lock);
 }
 
-uint16 get_page_ref(uint32 index) {
+int get_page_ref(uint index) {
   return page_refs[index];
 }
 
@@ -51,11 +55,13 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  uint64 i = 0;
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE){
-    kfree(p);
     // 初始化引用计数
-    page_refs[i++] = 0;
+    uint index = ((uint64)p - (uint64)pa_start) / PGSIZE;
+    acquire(&refs_lock);
+    page_refs[index] = 1;
+    release(&refs_lock);
+    kfree(p);
   }
 }
 
@@ -70,6 +76,15 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+
+  uint32 index = ((uint64)pa - PGROUNDUP((uint64)end)) / PGSIZE;
+  if(get_page_ref(index) < 1){
+    printf("[Kernel] kfree: refs: %d\n", get_page_ref(index));
+    panic("[Kernel] kfree: refs < 1.\n");
+  }
+  unpin_page(index);
+  int refs = get_page_ref(index);
+  if(refs > 0)return;
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -100,7 +115,10 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
     // 将引用计数加一
     uint32 index = ((uint64)r - PGROUNDUP((uint64)end)) / PGSIZE;
-    page_refs[index]++;
+    // pin_page(index);
+    acquire(&refs_lock);
+    page_refs[index] = 1;
+    release(&refs_lock);
   }
   return (void*)r;
 }

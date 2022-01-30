@@ -65,16 +65,15 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if(r_scause() == 0xf || r_scause() == 0xc){
-    // 发生页错误，此时应当分配页进行重新映射，并添加写
-    // 标志位
+  } else if(r_scause() == 0xf){
+    // 发生页错误，此时应当分配页进行重新映射，并添加写标志位
     // 获取发生页错误的虚拟地址
     uint64 err_vaddr = PGROUNDDOWN(r_stval());
     // 对子进程/父进程进行重新映射, 并添加写标志位
     // 获取出现页错误的物理地址
-
     pte_t* err_pte = translate(p->pagetable, err_vaddr);
     if(*err_pte & PTE_COW) {
+      // 如果此时带有 COW 标志位的话
       uint64 err_paddr = PTE2PA((uint64)*err_pte);
       if(err_paddr == 0){
         printf("[Kernel] usertrap: err_vaddr: %p\n", err_vaddr);
@@ -87,24 +86,15 @@ usertrap(void)
         p->killed = 1;
       }else{
         // 当拿到发生页错误所在的物理地址时需要进行重新映射
-        uint64 flags = (PTE_FLAGS((uint64)(*err_pte)) | PTE_W) & ~PTE_COW;
-        printf("[Kernel] usertrap: err_vaddr: %p, flags: %d\n", r_stval(), flags);
+        // 此时需要加上写标志位并擦除 COW 标志位
+        uint64 flags = (PTE_FLAGS((uint64)(*err_pte)) | PTE_W) & (~PTE_COW);
+        // printf("[Kernel] usertrap: pid: %d, err_vaddr: %p, flags: %d\n", p->pid, r_stval(), flags);
         // 将原来的数据拷贝到新分配的页中
-        memmove(page, (char*)err_paddr, PGSIZE);
+        memmove((char*)page, (char*)err_paddr, PGSIZE);
         // 对发生错误的虚拟地址重新进行映射
-        if(mappages(
-          p->pagetable, err_vaddr, 
-          PGSIZE, (uint64)page, flags
-          ) != 0){
-            panic("[Kernel] usertrap: Fail to map pages.\n");
-        }
-        uint32 index = (err_paddr - PGROUNDUP((uint64)end)) / PGSIZE;
-        unpin_page(index);
-        uint16 refs = get_page_ref(index);
-        if(refs == 0){
-          // 当引用数减少为0的时候需要去释放页内存
-          kfree((void*)err_paddr);
-        }
+        uvmunmap(p->pagetable, err_vaddr, PGSIZE, 1);
+        *err_pte = PA2PTE((uint64)page) | flags;
+        // kfree((void*)err_paddr);
       }
     }
   }else if((which_dev = devintr()) != 0){
