@@ -88,13 +88,11 @@ usertrap(void)
         // 当拿到发生页错误所在的物理地址时需要进行重新映射
         // 此时需要加上写标志位并擦除 COW 标志位
         uint64 flags = (PTE_FLAGS((uint64)(*err_pte)) | PTE_W) & (~PTE_COW);
-        // printf("[Kernel] usertrap: pid: %d, err_vaddr: %p, flags: %d\n", p->pid, r_stval(), flags);
         // 将原来的数据拷贝到新分配的页中
         memmove((char*)page, (char*)err_paddr, PGSIZE);
         // 对发生错误的虚拟地址重新进行映射
         uvmunmap(p->pagetable, err_vaddr, PGSIZE, 1);
         *err_pte = PA2PTE((uint64)page) | flags;
-        // kfree((void*)err_paddr);
       }
     }
   }else if((which_dev = devintr()) != 0){

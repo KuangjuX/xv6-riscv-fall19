@@ -101,7 +101,6 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
 pte_t* translate(pagetable_t pagetable, uint64 va) {
   pte_t* pte = walk(pagetable, va, 0);
   if(pte == 0){
-    printf("[Kernel] walkaddr: pte is 0\n");
     return 0;
   }
   if((*pte & PTE_V) == 0){
@@ -130,7 +129,6 @@ walkaddr(pagetable_t pagetable, uint64 va)
 
   pte = walk(pagetable, va, 0);
   if(pte == 0){
-    printf("[Kernel] walkaddr: pte is 0\n");
     return 0;
   }
   if((*pte & PTE_V) == 0){
@@ -399,20 +397,19 @@ uvmclear(pagetable_t pagetable, uint64 va)
 int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
+  if(dstva > MAXVA){
+    return -1;
+  }
   uint64 n, va0;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pte_t* pte = translate(pagetable, va0);
     if(pte == 0){
-      panic("[Kernel] copyout: pte should exist.\n");
-    }
-    if(!(*pte & PTE_V)) {
-      panic("[Kernel] copyout: pte is invalid.\n");
+      return -1;
     }
     uint64 pa = PTE2PA((uint64)(*pte));
     if(*pte & PTE_COW){
-      printf("[Kernel] copyout: va: %p\n", va0);
       char* page = kalloc();
       if(page == 0){
         panic("[Kernel] uvmcopy: fail to allocate page.\n");

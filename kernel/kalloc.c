@@ -24,6 +24,7 @@ struct {
 } kmem;
 
 // 用来记录页引用
+
 uint page_refs[PHYSTOP >> 12];
 struct spinlock refs_lock;
 
