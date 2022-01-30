@@ -50,10 +50,9 @@ usertrap(void)
   
   // save user program counter.
   p->tf->epc = r_sepc();
-  
+  // printf("[Kernel] usertrap: epc: %p scause: %p, \n", p->tf->epc, r_scause());
   if(r_scause() == 8){
     // system call
-
     if(p->killed)
       exit(-1);
 
@@ -73,40 +72,41 @@ usertrap(void)
     uint64 err_vaddr = PGROUNDDOWN(r_stval());
     // 对子进程/父进程进行重新映射, 并添加写标志位
     // 获取出现页错误的物理地址
-    uint64 err_paddr = walkaddr(p->pagetable, err_vaddr);
-    if(err_paddr == 0){
-      printf("[Kernel] usertrap: err_vaddr: %p\n", err_vaddr);
-      panic("[Kernel] usertrap: fail to walk");
-    }
-    // 根据发生错误的虚拟地址计算索引并减少引用次数
-    uint32 index = (err_paddr - PGROUNDUP((uint64)end)) / PGSIZE;
-    unpin_page(index);
-    uint16 refs = get_page_ref(index);
-    
-    // 分配一块新的物理页，并将数据拷贝到新分配中的页中
-    char* page = kalloc();
-    if(page == 0){
-      printf("[Kernel] usertrap: Fail to allocate physical page.\n");
-      p->killed = 1;
-    }else{
-      // 当拿到发生页错误所在的物理地址时需要进行重新映射
-      uint64 flags = PTE_R | PTE_W | PTE_X | PTE_U;
-      // 将原来的数据拷贝到新分配的页中
-      memmove(page, (char*)err_paddr, PGSIZE);
-      // printf("[Kernel] usertrap: allocated page addr: %p\n", (uint64)page);
-      // 对发生错误的虚拟地址重新进行映射
-      if(mappages(
-        p->pagetable, err_vaddr, 
-        PGSIZE, (uint64)page, flags
-        ) != 0){
-          panic("[Kernel] usertrap: Fail to map pages.\n");
+
+    pte_t* err_pte = translate(p->pagetable, err_vaddr);
+    if(*err_pte & PTE_COW) {
+      uint64 err_paddr = PTE2PA((uint64)*err_pte);
+      if(err_paddr == 0){
+        printf("[Kernel] usertrap: err_vaddr: %p\n", err_vaddr);
+        panic("[Kernel] usertrap: fail to walk");
+      }
+      // 分配一块新的物理页，并将数据拷贝到新分配中的页中
+      char* page = kalloc();
+      if(page == 0){
+        printf("[Kernel] usertrap: Fail to allocate physical page.\n");
+        p->killed = 1;
+      }else{
+        // 当拿到发生页错误所在的物理地址时需要进行重新映射
+        uint64 flags = (PTE_FLAGS((uint64)(*err_pte)) | PTE_W) & ~PTE_COW;
+        printf("[Kernel] usertrap: err_vaddr: %p, flags: %d\n", r_stval(), flags);
+        // 将原来的数据拷贝到新分配的页中
+        memmove(page, (char*)err_paddr, PGSIZE);
+        // 对发生错误的虚拟地址重新进行映射
+        if(mappages(
+          p->pagetable, err_vaddr, 
+          PGSIZE, (uint64)page, flags
+          ) != 0){
+            panic("[Kernel] usertrap: Fail to map pages.\n");
         }
-      if(refs == 0){
-        // 当引用数减少为0的时候需要去释放页内存
-        kfree((void*)err_paddr);
+        uint32 index = (err_paddr - PGROUNDUP((uint64)end)) / PGSIZE;
+        unpin_page(index);
+        uint16 refs = get_page_ref(index);
+        if(refs == 0){
+          // 当引用数减少为0的时候需要去释放页内存
+          kfree((void*)err_paddr);
+        }
       }
     }
-
   }else if((which_dev = devintr()) != 0){
     // ok
   } else {

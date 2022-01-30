@@ -27,6 +27,10 @@ struct {
 // 32768 = 128 * 1024KB / 4KB
 uint16 page_refs[32768];
 
+void pin_page(uint32 index){
+  page_refs[index]++;
+}
+
 void unpin_page(uint32 index){
   page_refs[index]--;
 }

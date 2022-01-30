@@ -63,6 +63,7 @@ void*           kalloc(void);
 void            kfree(void *);
 void            kinit();
 void            unpin_page(uint32 index);
+void            pin_page(uint32 index);
 uint16          get_page_ref(uint32 index);
 
 // log.c
@@ -173,6 +174,7 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+pte_t*          translate(pagetable_t pagetable, uint64 va);
 
 // plic.c
 void            plicinit(void);

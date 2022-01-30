@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -93,6 +95,11 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
     }
   }
   return &pagetable[PX(0, va)];
+}
+
+// 地址翻译
+pte_t* translate(pagetable_t pagetable, uint64 va) {
+    return walk(pagetable, va, 0);
 }
 
 
@@ -331,14 +338,16 @@ int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   // 将父进程页表内容拷贝到子进程中
-  // memmove((void*)new, (const void*)old, PGSIZE);
   // 将所有页表项设置为不可写,这里要模拟一遍页表翻译过程
   for(uint64 vaddr = 0; vaddr < sz; vaddr += PGSIZE) {
     // 我们只需要将最低级的页表加上 COW 标识符
     // 并擦去写标志位即可
+    extern char end[];
     pte_t* pte = walk(old, vaddr, 0);
-    uint64 pa = (uint64)PTE2PA((uint64)pte);
-    uint64 flags = PTE_FLAGS((uint64)pte);
+    uint64 pa = (uint64)PTE2PA((uint64)(*pte));
+    uint32 index = (pa - PGROUNDDOWN((uint64)end)) / PGSIZE;
+    pin_page(index);
+    uint64 flags = (PTE_FLAGS((uint64)(*pte)) | PTE_COW) & ~PTE_W;
     if(mappages(new, vaddr, PGSIZE, pa, flags) != 0){
       panic("[Kernel] uvmcopy: fail to copy parent physical address.\n");
     }
@@ -372,20 +381,45 @@ uvmclear(pagetable_t pagetable, uint64 va)
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
+// 拷贝的时候需要查看是否有 COW 标志位进而进行页的重新分配
 int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
-  uint64 n, va0, pa0;
+  uint64 n, va0;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
+    pte_t* pte = translate(pagetable, va0);
+    if(pte == 0){
+      panic("[Kernel] copyout: pte should exist.\n");
+    }
+    if(!(*pte & PTE_V)) {
+      panic("[Kernel] copyout: pte is invalid.\n");
+    }
+    uint64 pa = PTE2PA((uint64)(*pte));
+    if(*pte & PTE_COW){
+      char* page = kalloc();
+      if(page == 0){
+        panic("[Kernel] uvmcopy: fail to allocate page.\n");
+      }else{
+        uint64 flags = (PTE_FLAGS((uint64)(*pte)) | PTE_W) & ~PTE_COW;
+        memmove(page, (char*)pa, PGSIZE);
+        if(mappages(myproc()->pagetable, va0, PGSIZE, (uint64)page, flags) != 0){
+          panic("[Kernel] uvmcopy: Fail to map pages.\n");
+        }
+        extern char end[];
+        uint32 index = (pa - PGROUNDDOWN((uint64)end)) / PGSIZE;
+        unpin_page(index);
+        uint16 refs = get_page_ref(index);
+        if(refs == 0){
+          kfree((void*)pa);
+        }
+      }
+    }
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
-    memmove((void *)(pa0 + (dstva - va0)), src, n);
+    memmove((void *)(pa + (dstva - va0)), src, n);
 
     len -= n;
     src += n;

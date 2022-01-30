@@ -286,7 +286,6 @@ fork(void)
 
   release(&np->lock);
 
-  printf("[Kernel] fork: pid: %d\n", pid);
   return pid;
 }
 
@@ -419,6 +418,7 @@ wait(uint64 addr)
           freeproc(np);
           release(&np->lock);
           release(&p->lock);
+          printf("[Kernel] wait: pid: %d\n", pid);
           return pid;
         }
         release(&np->lock);
