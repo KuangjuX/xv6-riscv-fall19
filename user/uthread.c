@@ -10,13 +10,46 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
+static int name = 'a';
+
+// 线程上下文，用于保存寄存器
+struct thread_context{
+  uint64 ra;
+  uint64 sp;
+
+  // callee-saved
+  uint64 s0;
+  uint64 s1;
+  uint64 s2;
+  uint64 s3;
+  uint64 s4;
+  uint64 s5;
+  uint64 s6;
+  uint64 s7;
+  uint64 s8;
+  uint64 s9;
+  uint64 s10;
+  uint64 s11;
+};
+
 struct thread {
+  struct     thread_context context; // 线程上下文
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  char       name[10]; // For Debug
 };
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
+// 线程上下文切换
 extern void thread_switch(uint64, uint64);
+
+void thread_dump(){
+  printf("------------thread dump------------\n");
+  for(int i = 0; i < MAX_THREAD; i++){
+    printf("name: %c state: %d\n", all_thread[i].name[0], all_thread[i].state);
+  }
+  printf("------------------------------------\n");
+}
               
 void 
 thread_init(void)
@@ -28,13 +61,16 @@ thread_init(void)
   // a RUNNABLE thread.
   current_thread = &all_thread[0];
   current_thread->state = RUNNING;
+  current_thread->name[0] = 'x';
 }
 
+// 线程调度
 void 
 thread_schedule(void)
 {
   struct thread *t, *next_thread;
 
+  // thread_dump();
   /* Find another runnable thread. */
   next_thread = 0;
   t = current_thread + 1;
@@ -54,6 +90,8 @@ thread_schedule(void)
   }
 
   if (current_thread != next_thread) {         /* switch threads?  */
+    // 找到下一个调度的线程并执行上下文切换
+    // thread_dump();
     next_thread->state = RUNNING;
     t = current_thread;
     current_thread = next_thread;
@@ -61,10 +99,13 @@ thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
-  } else
+    thread_switch((uint64)&t->context, (uint64)&current_thread->context);
+  } else{
     next_thread = 0;
+  }
 }
 
+// 创建线程, 参数为函数指针
 void 
 thread_create(void (*func)())
 {
@@ -73,10 +114,18 @@ thread_create(void (*func)())
   for (t = all_thread; t < all_thread + MAX_THREAD; t++) {
     if (t->state == FREE) break;
   }
+  t->name[0] = name;
+  name++;
+  // 将线程状态设置为可运行
   t->state = RUNNABLE;
   // YOUR CODE HERE
+  // 将上下文的函数返回值设置为函数指针的地址
+  t->context.ra = (uint64)func;
+  // 设置上下文的栈地址
+  t->context.sp = (uint64)&t->stack[STACK_SIZE];
 }
 
+// 主动让出 CPU 交给调度器
 void 
 thread_yield(void)
 {
