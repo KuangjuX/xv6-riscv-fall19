@@ -43,10 +43,13 @@ mbufpush(struct mbuf *m, unsigned int len)
 char *
 mbufput(struct mbuf *m, unsigned int len)
 {
+  // printf("[Kernel] mbufput: before len: %d\n", m->len);
   char *tmp = m->head + m->len;
   m->len += len;
-  if (m->len > MBUF_SIZE)
+  if (m->len > MBUF_SIZE){
+    // printf("[Kernel] mbufput: after len: %d\n", m->len);
     panic("mbufput");
+  }
   return tmp;
 }
 
