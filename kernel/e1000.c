@@ -113,8 +113,6 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
-  // return -1;
-  
   // 获取 ring position
   uint64 tdt = regs[E1000_TDT];
   uint64 index = tdt % TX_RING_SIZE;
@@ -122,7 +120,7 @@ e1000_transmit(struct mbuf *m)
   if(!(send_desc.status & E1000_TXD_STAT_DD)) {
     return -1;
   }
-  if(tx_mbufs[index]->head != 0){
+  if(tx_mbufs[index] != 0){
     // 如果该位置的缓冲区不为空则释放
     mbuffree(tx_mbufs[index]);
   }
@@ -147,12 +145,10 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
-  // 扫描 RX queue 处理收到每个收到的 pakcet
-  // 对于每个 pakcet 都创建和分发 mbuf，调用 net_rx()
-  // 将其传输到协议层
   
   // 获取接收 packet 的位置
   uint64 rdt = regs[E1000_RDT];
+  uint64 rdh = regs[E1000_RDH];
   uint64 index = (rdt + 1) % RX_RING_SIZE; 
   struct rx_desc recv_desc = rx_ring[index];
   if(!(recv_desc.status & E1000_RXD_STAT_DD)){
@@ -160,6 +156,7 @@ e1000_recv(void)
     // 没有，则直接返回
     return;
   }
+  printf("[Kernel] rdt: %d, rdh: %d\n", rdt, rdh);
   // 使用 mbufput 更新长度并将其交给 net_rx() 处理
   mbufput(rx_mbufs[index], recv_desc.length);
   net_rx(rx_mbufs[index]);
