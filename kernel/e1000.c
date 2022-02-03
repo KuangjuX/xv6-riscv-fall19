@@ -148,7 +148,6 @@ e1000_recv(void)
   
   // 获取接收 packet 的位置
   uint64 rdt = regs[E1000_RDT];
-  uint64 rdh = regs[E1000_RDH];
   uint64 index = (rdt + 1) % RX_RING_SIZE; 
   struct rx_desc recv_desc = rx_ring[index];
   if(!(recv_desc.status & E1000_RXD_STAT_DD)){
@@ -156,7 +155,7 @@ e1000_recv(void)
     // 没有，则直接返回
     return;
   }
-  printf("[Kernel] rdt: %d, rdh: %d\n", rdt, rdh);
+  // printf("[Kernel] rdt: %d, rdh: %d\n", rdt, rdh);
   // 使用 mbufput 更新长度并将其交给 net_rx() 处理
   mbufput(rx_mbufs[index], recv_desc.length);
   net_rx(rx_mbufs[index]);

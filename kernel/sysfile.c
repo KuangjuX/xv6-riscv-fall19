@@ -70,6 +70,7 @@ sys_connect(void)
   if(sockalloc(&f, raddr, lport, rport) < 0)
     return -1;
   if((fd=fdalloc(f)) < 0){
+    printf("[Kernel] sys_connect: allocate fd fail.\n");
     fileclose(f);
     return -1;
   }
