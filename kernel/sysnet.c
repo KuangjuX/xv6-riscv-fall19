@@ -26,6 +26,23 @@ struct sock {
 static struct spinlock lock;
 static struct sock *sockets;
 
+void sock_dump(){
+  printf("-------------------------\n");
+  struct sock* sock;
+  // if(!holding(&lock)){
+  //   acquire(&lock);
+  // }
+  sock = sockets;
+  while(sock != 0){
+    printf("raddr: %d, lport: %d, rport: %d\n", sock->raddr, sock->lport, sock->rport);
+    sock = sock->next;
+  }
+  // if(holding(&lock)){
+  //   release(&lock);
+  // }
+  printf("-------------------------\n");
+}
+
 void
 sockinit(void)
 {
@@ -106,6 +123,10 @@ sockrecvudp(struct mbuf *m, uint32 raddr, uint16 lport, uint16 rport)
       break;
     }
     sock = sock->next;
+    if(sock == 0){
+      printf("[Kernel] sockrecvudp: can't find socket.\n");
+      return;
+    }
   }
   release(&lock);
   acquire(&sock->lock);
@@ -168,17 +189,18 @@ void sock_close(struct sock* sock){
   // 从链表中移除
   cur = sockets;
   while(cur != 0){
-    if(cur == sock){
-      if(prev == 0){
-        sockets = cur->next;
+    if(cur->lport == sock->lport && cur->raddr == sock->raddr && cur->rport == sock->rport){
+      if(cur == sockets){
+        sockets = sockets->next;
         break;
       }else{
+        sock = cur;
         prev->next = cur->next;
         break;
       }
-      prev = cur;
-      cur = cur->next;
     }
+    prev = cur;
+    cur = cur->next;
   }
   // 释放 sock 所有的 mbuf
   acquire(&sock->lock);

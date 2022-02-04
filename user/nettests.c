@@ -35,14 +35,12 @@ ping(uint16 sport, uint16 dport, int attempts)
   }
 
   char ibuf[128];
-  // printf("[User] ping: read.\n");
   int cc = read(fd, ibuf, sizeof(ibuf));
   if(cc < 0){
     fprintf(2, "ping: recv() failed\n");
     exit(1);
   }
 
-  // printf("[User] ping: close.\n");
   close(fd);
   if (strcmp(obuf, ibuf) || cc != sizeof(obuf)){
     fprintf(2, "ping didn't receive correct payload\n");
@@ -208,7 +206,6 @@ dns()
   }
 
   len = dns_req(obuf);
-  
   if(write(fd, obuf, len) < 0){
     fprintf(2, "dns: send() failed\n");
     exit(1);
@@ -218,6 +215,7 @@ dns()
     fprintf(2, "dns: recv() failed\n");
     exit(1);
   }
+
   dns_rep(ibuf, cc);
 
   close(fd);
