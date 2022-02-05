@@ -8,6 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct virtual_memory_area;
 
 // bio.c
 void            binit(void);
@@ -33,6 +34,7 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
+int             map_file(uint64 addr);
 
 // fs.c
 void            fsinit(int);
@@ -104,6 +106,12 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+
+uint64          find_unallocated_area(uint64 length);
+int             push_mm_area(struct virtual_memory_area mm_area);
+struct          virtual_memory_area* find_area(uint64 addr);
+void*           mmap(void* addr, uint64 length, int prot, int flags, int fd, uint64 offset);
+int             munmap(void* addr, uint64 length);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -206,3 +214,5 @@ void lst_push(struct list*, void *);
 void *lst_pop(struct list*);
 void lst_print(struct list*);
 int lst_empty(struct list*);
+
+

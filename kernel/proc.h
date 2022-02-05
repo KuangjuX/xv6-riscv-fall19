@@ -1,3 +1,27 @@
+// 随便定义一个起始的虚拟地址
+#define START_MMAP_ADDR (MAXVA/2)
+
+#define MM_SIZE 100
+
+// 记录 mmap 信息的结构体
+struct virtual_memory_area {
+    // 映射虚拟内存起始地址
+    uint64 start_addr;
+    // 映射虚拟内存结束地址
+    uint64 end_addr;
+    // 映射长度
+    uint64 length;
+    // 特权
+    int prot;
+    // 标志位
+    int flags;
+    // 文件描述符
+    // int fd;
+    struct file* file;
+    // 文件偏移量
+    uint64 offset;
+};
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -103,4 +127,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // 记录该进程 mmap 的信息
+  struct virtual_memory_area mm_area[MM_SIZE];
 };
+
+

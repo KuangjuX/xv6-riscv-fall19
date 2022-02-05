@@ -7,6 +7,7 @@
 #include "spinlock.h"
 #include "proc.h"
 
+
 uint64
 sys_exit(void)
 {
@@ -94,4 +95,31 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64 sys_mmap(void) {
+  uint64 addr, length, offset;
+  int prot, flags, fd;
+  argaddr(0, &addr);
+  argaddr(1, &length);
+  argint(2, &prot);
+  argint(3, &flags);
+  argint(4, &fd);
+  argaddr(5, &offset);
+  uint64 ret;
+  if((ret = (uint64)mmap((void*)addr, length, prot, flags, fd, offset)) < 0){
+    return -1;
+  }
+  return ret;
+}
+
+uint64 sys_munmap(void){
+  uint64 addr, length;
+  argaddr(0, &addr);
+  argaddr(1, &length);
+  uint64 ret;
+  if((ret = munmap((void*)addr, length)) < 0){
+    return -1;
+  }
+  return ret;
 }

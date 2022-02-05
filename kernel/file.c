@@ -12,6 +12,7 @@
 #include "file.h"
 #include "stat.h"
 #include "proc.h"
+#include "mmap.h"
 
 struct devsw devsw[NDEV];
 struct {
@@ -179,4 +180,53 @@ filewrite(struct file *f, uint64 addr, int n)
 
   return ret;
 }
+
+int map_file(uint64 addr) {
+
+    struct proc* p = myproc();
+    struct virtual_memory_area* mm_area = find_area(addr);
+    if(mm_area == 0){
+      printf("[Kernel] map_file: fail to find mm_area.\n");
+      return -1;
+    }
+    // 从文件中读一页的地址并映射到页中
+    char* page = kalloc();
+    // 将页初始化成0
+    memset(page, 0, PGSIZE);
+    if(page == 0){
+      printf("[Kernel] map_file: fail to alloc kernel page.\n");
+      return -1;
+    }
+    int flags = PTE_U;
+    if(mm_area->prot & PROT_READ){
+      flags |= PTE_R;
+    }
+    if(mm_area->prot & PROT_WRITE){
+      flags |= PTE_W;
+    }
+    if(mappages(p->pagetable, addr, PGSIZE, (uint64)page, flags) != 0) {
+      printf("[Kenrel] map_file: map page fail");
+      return -1;
+    }
+
+    struct file* f = mm_area->file;
+    if(f->type == FD_INODE){
+      ilock(f->ip);
+      printf("[Kernel] map_file: addr: %p, offset: %d\n", addr, mm_area->offset);
+      if(readi(f->ip, 1, addr, mm_area->offset, PGSIZE) == -1){
+        printf("[Kernel] map_file: fail to read file.\n");
+        iunlock(f->ip);
+        return -1;
+      }
+      mm_area->offset += PGSIZE;
+      iunlock(f->ip);
+      return 0;
+    }
+    return -1;
+}
+
+// int unmap_file(int fd, uint64 addr, uint64 length){
+//   struct proc* p = myproc();
+//   struct file* f = p->ofile[fd];
+// }
 

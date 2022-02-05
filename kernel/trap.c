@@ -68,7 +68,15 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } else if(r_scause() == 0xd || r_scause() == 0xf){
+    // 处理页错误
+    // printf("[Kernel] usertrap: addr: %p\n", r_stval());
+    // 将错误地址进行页对齐
+    uint64 addr = PGROUNDDOWN(r_stval());
+    if(map_file(addr) == -1){
+      panic("[Kernel] usertrap: map file fail.\n");
+    }
+  }else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p (%s) pid=%d\n", r_scause(), scause_desc(r_scause()), p->pid);

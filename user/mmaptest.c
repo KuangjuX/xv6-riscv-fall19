@@ -5,6 +5,7 @@
 #include "kernel/riscv.h"
 #include "kernel/fs.h"
 #include "user/user.h"
+#include "kernel/mmap.h"
 
 void mmap_test();
 void fork_test();
@@ -40,12 +41,12 @@ _v1(char *p)
   for (i = 0; i < PGSIZE*2; i++) {
     if (i < PGSIZE + (PGSIZE/2)) {
       if (p[i] != 'A') {
-        printf("mismatch at %d, wanted 'A', got 0x%x\n", i, p[i]);
+        printf("mismatch at %p, wanted 'A', got 0x%x\n", i, p[i]);
         err("v1 mismatch (1)");
       }
     } else {
       if (p[i] != 0) {
-        printf("mismatch at %d, wanted zero, got 0x%x\n", i, p[i]);
+        printf("mismatch at %p, wanted zero, got 0x%x\n", i, p[i]);
         err("v1 mismatch (2)");
       }
     }

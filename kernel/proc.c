@@ -6,8 +6,10 @@
 #include "sleeplock.h"
 #include "fs.h"
 #include "file.h"
-#include "proc.h"
 #include "defs.h"
+#include "proc.h"
+#include "mmap.h"
+
 
 struct cpu cpus[NCPU];
 
@@ -688,5 +690,126 @@ procdump(void)
       state = "???";
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
+  }
+}
+
+uint64 find_unallocated_area(uint64 length){
+  // 遍历 mm_area 发现第一个可以存放指定长度的区域
+  struct proc* p = myproc();
+  struct virtual_memory_area* mm_area = p->mm_area;
+  for(int i = 0; i < MM_SIZE; i++){
+    // 将每一块区域的结束地址作为起始地址
+    uint64 start_addr = (mm_area[i].end_addr == 0? START_MMAP_ADDR: mm_area[i].end_addr);
+    // 获取起始地址
+    uint64 end_addr = start_addr + length;
+    for(int i = 0; i < MM_SIZE; i++){
+      // 遍历链表发现是否重叠
+      uint64 max_start = start_addr > mm_area[i].start_addr ? start_addr: mm_area[i].start_addr;
+      uint64 min_end = end_addr < mm_area[i].end_addr ? end_addr: mm_area[i].end_addr;
+      if(max_start <= min_end){
+        // 区间重叠
+        break;
+      }
+    }
+    return start_addr;
+  }
+  return 0;
+}
+
+int push_mm_area(struct virtual_memory_area mm_area){
+  struct proc* p = myproc();
+  for(int i = 0; i < MM_SIZE; i++){
+    if(p->mm_area[i].start_addr == 0){
+      p->mm_area[i] = mm_area;
+      return 0;
+    }
+  }
+  return -1;
+}
+
+void free_mm_area(struct virtual_memory_area* mm_area){
+    mm_area->start_addr = 0;
+    mm_area->end_addr = 0;
+    mm_area->file = 0;
+    mm_area->flags = 0;
+    mm_area->length = 0;
+    mm_area->prot = 0;
+    mm_area->offset = 0;
+}
+
+struct virtual_memory_area* find_area(uint64 addr){
+  struct proc* p = myproc();
+  for(int i = 0; i < MM_SIZE; i++){
+    if(addr >= p->mm_area[i].start_addr && addr <= p->mm_area[i].end_addr){
+      return &p->mm_area[i];
+    }
+  }
+  return (struct virtual_memory_area*)0;
+}
+
+int rm_area(struct virtual_memory_area* mm_area){
+  struct proc* p = myproc();
+  for(int i = 0; i < MM_SIZE; i++){
+    if(&p->mm_area[i] == mm_area){
+      free_mm_area(&p->mm_area[i]);
+      return 0;
+    }
+  }
+  return -1;
+}
+
+void* mmap(void* addr, uint64 length, int prot, int flags, int fd, uint64 offset) {
+  // 此时应当从该进程中发现一块未被使用的虚拟内存空间
+  // printf("[Kernel] mmap: length: %p, prot: %d, flags: %d, fd: %d, offset: %p\n", length, prot, flags, fd, offset);
+  uint64 start_addr = find_unallocated_area(length);
+  if(start_addr == 0){
+    printf("[Kernel] mmap: can't find unallocated area");
+    return (void*)-1;
+  }
+  // 构造 mm_area
+  struct virtual_memory_area m;
+  m.start_addr = start_addr;
+  m.end_addr = start_addr + length;
+  m.length = length;
+  m.file = myproc()->ofile[fd];
+  m.flags = flags;
+  m.prot = prot;
+  m.offset = offset;
+  // 增加文件的引用
+  struct file* f = myproc()->ofile[fd];
+  filedup(f);
+  // 将 mm_area 放入结构体中
+  if(push_mm_area(m) == -1){
+    return (void*)-1;
+  }
+  return (void*)start_addr;
+}
+
+int munmap(void* addr, uint64 length){
+  printf("[Kernel] munmap: addr: %p, length: %p\n", (uint64)addr, length);
+  // 找到地址对应的区域
+  struct virtual_memory_area* mm_area = find_area((uint64)addr);
+  // 根据地址进行切割，暂时进行简单地考虑
+  if(((uint64)(addr) + length) >= mm_area->end_addr && (uint64)addr <= mm_area->start_addr){
+    uvmunmap(myproc()->pagetable, mm_area->start_addr, mm_area->length, 0);
+    struct file* f = mm_area->file;
+    if(mm_area->flags == MAP_SHARED){
+      // 将内存区域写回文件
+      if(filewrite(f, mm_area->start_addr, mm_area->length) < 0){
+        printf("[Kernel] munmap: fail to write back file.\n");
+        return -1;
+      }
+    }
+    // 减去文件引用
+    fileclose(f);
+    
+    // 将内存区域从表中删除
+    if(rm_area(mm_area) < 0){
+      printf("[Kernel] munmap: fail to remove memory area from table.\n");
+      return -1;
+    }
+    return 0;
+  }else{
+    panic("[Kernel] munmap: no implement!.\n");
   }
 }
