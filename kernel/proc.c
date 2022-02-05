@@ -760,7 +760,6 @@ int rm_area(struct virtual_memory_area* mm_area){
 
 void* mmap(void* addr, uint64 length, int prot, int flags, int fd, uint64 offset) {
   // 此时应当从该进程中发现一块未被使用的虚拟内存空间
-  // printf("[Kernel] mmap: length: %p, prot: %d, flags: %d, fd: %d, offset: %p\n", length, prot, flags, fd, offset);
   uint64 start_addr = find_unallocated_area(length);
   if(start_addr == 0){
     printf("[Kernel] mmap: can't find unallocated area");
@@ -775,11 +774,17 @@ void* mmap(void* addr, uint64 length, int prot, int flags, int fd, uint64 offset
   m.flags = flags;
   m.prot = prot;
   m.offset = offset;
+  // 检查权限位是否满足映射要求
+  if((m.prot & PROT_WRITE) && (m.flags == MAP_SHARED) && (!m.file->writable)){
+    printf("[Kernel] mmap: prot is invalid.\n");
+    return (void*)-1;
+  }
   // 增加文件的引用
   struct file* f = myproc()->ofile[fd];
   filedup(f);
   // 将 mm_area 放入结构体中
   if(push_mm_area(m) == -1){
+    printf("[Kernel] mmap: fail to push memory area.\n");
     return (void*)-1;
   }
   return (void*)start_addr;

@@ -130,6 +130,7 @@ mmap_test(void)
   if (munmap(p, PGSIZE*2) == -1)
     err("munmap (2)");
 
+  printf("[User] mmap_test: check that mmap doesn't allow read/write mapping of a file opened read-only.\n");
   // check that mmap doesn't allow read/write mapping of a
   // file opened read-only.
   if ((fd = open(f, O_RDONLY)) == -1)
@@ -142,6 +143,7 @@ mmap_test(void)
 
   // check that mmap does allow read/write mapping of a
   // file opened read/write.
+  printf("[User] mmap_test: check that mmap does allow read/write mapping of a file opened read/write.\n");
   if ((fd = open(f, O_RDWR)) == -1)
     err("open");
   p = mmap(0, PGSIZE*3, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

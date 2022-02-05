@@ -108,6 +108,7 @@ uint64 sys_mmap(void) {
   argaddr(5, &offset);
   uint64 ret;
   if((ret = (uint64)mmap((void*)addr, length, prot, flags, fd, offset)) < 0){
+    printf("[Kernel] fail to mmap.\n");
     return -1;
   }
   return ret;
