@@ -186,6 +186,7 @@ mmap_test(void)
   //
   // mmap two files at the same time.
   //
+  printf("[User] mmap two files at the same time.\n");
   int fd1;
   if((fd1 = open("mmap1", O_RDWR|O_CREATE)) < 0)
     err("open mmap1");

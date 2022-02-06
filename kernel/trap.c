@@ -72,7 +72,6 @@ usertrap(void)
     // 处理页错误
     // 将错误地址进行页对齐
     uint64 addr = PGROUNDDOWN(r_stval());
-    printf("[Kernel] usertrap: %p\n", addr);
     if(map_file(addr) == -1){
       panic("[Kernel] usertrap: map file fail.\n");
     }

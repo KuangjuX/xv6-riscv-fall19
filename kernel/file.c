@@ -211,7 +211,6 @@ int map_file(uint64 addr) {
     struct file* f = mm_area->file;
     if(f->type == FD_INODE){
       ilock(f->ip);
-      printf("[Kernel] map_file: addr: %p, offset: %d\n", addr, mm_area->offset);
       if(readi(f->ip, 1, addr, mm_area->offset, PGSIZE) == -1){
         printf("[Kernel] map_file: fail to read file.\n");
         iunlock(f->ip);
