@@ -211,12 +211,14 @@ int map_file(uint64 addr) {
     struct file* f = mm_area->file;
     if(f->type == FD_INODE){
       ilock(f->ip);
-      if(readi(f->ip, 1, addr, mm_area->offset, PGSIZE) == -1){
+      // printf("[Kernel] map_file: start_addr: %p, addr: %p\n", mm_area->start_addr, addr);
+      uint64 offset = addr - mm_area->start_addr;
+      if(readi(f->ip, 1, addr, offset, PGSIZE) == -1){
         printf("[Kernel] map_file: fail to read file.\n");
         iunlock(f->ip);
         return -1;
       }
-      mm_area->offset += PGSIZE;
+      // mm_area->offset += PGSIZE;
       iunlock(f->ip);
       return 0;
     }

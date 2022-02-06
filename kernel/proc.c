@@ -740,7 +740,7 @@ void free_mm_area(struct virtual_memory_area* mm_area){
 struct virtual_memory_area* find_area(uint64 addr){
   struct proc* p = myproc();
   for(int i = 0; i < MM_SIZE; i++){
-    if(addr >= p->mm_area[i].start_addr && addr <= p->mm_area[i].end_addr){
+    if(addr >= p->mm_area[i].start_addr && addr < p->mm_area[i].end_addr){
       return &p->mm_area[i];
     }
   }

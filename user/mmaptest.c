@@ -197,6 +197,7 @@ mmap_test(void)
     err("mmap mmap1");
   close(fd1);
   unlink("mmap1");
+  printf("[User] mmap1.\n");
 
   int fd2;
   if((fd2 = open("mmap2", O_RDWR|O_CREATE)) < 0)
@@ -208,13 +209,17 @@ mmap_test(void)
     err("mmap mmap2");
   close(fd2);
   unlink("mmap2");
+  printf("[User] mmap2.\n");
 
   if(memcmp(p1, "12345", 5) != 0)
     err("mmap1 mismatch");
   if(memcmp(p2, "67890", 5) != 0)
     err("mmap2 mismatch");
 
+  printf("[User] memcmp.\n");
+
   munmap(p1, PGSIZE);
+  printf("[User] munmap1.\n");
   if(memcmp(p2, "67890", 5) != 0)
     err("mmap2 mismatch (2)");
   munmap(p2, PGSIZE);

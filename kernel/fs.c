@@ -462,8 +462,10 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   uint tot, m;
   struct buf *bp;
 
-  if(off > ip->size || off + n < off)
+  if(off > ip->size || off + n < off){
+    printf("[Kernel] readi: off: 0x%x, size: 0x%x, n: 0x%x\n", off, ip->size, n);
     return -1;
+  }
   if(off + n > ip->size)
     n = ip->size - off;
 
