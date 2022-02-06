@@ -795,8 +795,9 @@ int munmap(void* addr, uint64 length){
   // 找到地址对应的区域
   struct virtual_memory_area* mm_area = find_area((uint64)addr);
   // 根据地址进行切割，暂时进行简单地考虑
-  if(((uint64)(addr) + length) >= mm_area->end_addr && (uint64)addr <= mm_area->start_addr){
-    uvmunmap(myproc()->pagetable, mm_area->start_addr, mm_area->length, 0);
+  uint64 start_addr = PGROUNDDOWN((uint64)addr);
+  uint64 end_addr = PGROUNDUP((uint64)addr + length);
+  if(end_addr == mm_area->end_addr && start_addr == mm_area->start_addr){
     struct file* f = mm_area->file;
     if(mm_area->flags == MAP_SHARED){
       // 将内存区域写回文件
@@ -805,6 +806,16 @@ int munmap(void* addr, uint64 length){
         return -1;
       }
     }
+    uvmunmap(myproc()->pagetable, mm_area->start_addr, mm_area->length, 1);
+    // for(int i = 0; i < mm_area->length / PGSIZE; i++){
+    //   uint64 addr = mm_area->start_addr + i * PGSIZE;
+    //   uint64 pa = walkaddr(myproc()->pagetable, addr);
+    //   if(pa == 0){
+    //     printf("[Kernel] munmap: fail to translate addr %p.\n", addr);
+    //   }else{
+    //     kfree((void*)pa);
+    //   }
+    // }
     // 减去文件引用
     fileclose(f);
     
@@ -814,7 +825,54 @@ int munmap(void* addr, uint64 length){
       return -1;
     }
     return 0;
+  }else if(end_addr <= mm_area->end_addr && start_addr >= mm_area->start_addr){
+    // 此时表示该区域只是一个子区域
+    printf("[Kernel] munmap: start_addr: %p, end_addr: %p, area_start: %p, area_end: %p\n", start_addr, end_addr, mm_area->start_addr, mm_area->end_addr);
+    struct file* f = mm_area->file;
+    if(mm_area->flags == MAP_SHARED){
+      // 写回文件
+      // 获取偏移量
+      uint offset = start_addr - mm_area->start_addr;
+      uint len = end_addr - start_addr;
+      printf("[Kernel] munmap: offset: 0x%x, len: %d\n", offset, len);
+      if(f->type == FD_INODE){
+        begin_op(f->ip->dev);
+        ilock(f->ip);
+        if(writei(f->ip, 1, start_addr, offset, len) < 0){
+          printf("[Kernel] munmap: fail to write back file.\n");
+          iunlock(f->ip);
+          end_op(f->ip->dev);
+          return -1;
+        }
+        iunlock(f->ip);
+        end_op(f->ip->dev);
+      }
+    }
+
+    // for(int i = 0; i < (end_addr - start_addr) / PGSIZE; i++){
+    //   uint64 addr = start_addr + i * PGSIZE;
+    //   uint64 pa = walkaddr(myproc()->pagetable, addr);
+    //   if(pa == 0){
+    //     printf("[Kernel] munmap: fail to translate addr %p.\n", addr);
+    //   }else{
+    //     kfree((void*)pa);
+    //   }
+    // }
+    uvmunmap(myproc()->pagetable, start_addr, end_addr - start_addr, 1);
+    // 修改 mm_area 结构体
+    if(start_addr == mm_area->start_addr) {
+      mm_area->start_addr = end_addr;
+      mm_area->offset += end_addr - mm_area->start_addr;
+    }else if(end_addr == mm_area->end_addr){
+      mm_area->end_addr = start_addr;
+    }else{
+      // 此时需要进行分块
+      panic("[Kernel] munmap: no implement!\n");
+    }
+    return 0;
+  }else if(end_addr > mm_area->end_addr){
+    panic("[Kernel] munmap: out of current range.\n");
   }else{
-    panic("[Kernel] munmap: no implement!.\n");
+    panic("[Kernel] munmap: unresolved solution.\n");
   }
 }

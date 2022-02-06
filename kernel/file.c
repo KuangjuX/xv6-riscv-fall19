@@ -182,7 +182,6 @@ filewrite(struct file *f, uint64 addr, int n)
 }
 
 int map_file(uint64 addr) {
-
     struct proc* p = myproc();
     struct virtual_memory_area* mm_area = find_area(addr);
     if(mm_area == 0){

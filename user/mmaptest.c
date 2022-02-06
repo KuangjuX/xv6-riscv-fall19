@@ -171,8 +171,10 @@ mmap_test(void)
     char b;
     if (read(fd, &b, 1) != 1)
       err("read (1)");
-    if (b != 'Z')
+    if (b != 'Z'){
+      printf("[User] mmap_test: index: %d, value is %c\n", i, b);
       err("file does not contain modifications");
+    }
   }
   if (close(fd) == -1)
     err("close");
