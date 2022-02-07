@@ -279,6 +279,16 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  // 复制 mmap 结构体
+  for(int i = 0; i < MM_SIZE; i++){
+    if(p->mm_area[i].start_addr != 0){
+      np->mm_area[i] = p->mm_area[i];
+      // 增加文件引用
+      filedup(p->mm_area[i].file);
+    }
+  }
+
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -336,6 +346,13 @@ exit(int status)
     }
   }
 
+  // 释放所有 mmap 区域的内存
+  for(int i = 0; i < MM_SIZE; i++){
+    if(p->mm_area[i].start_addr != 0){
+      munmap((void*)p->mm_area[i].start_addr, p->mm_area[i].length);
+    }
+  }
+
   begin_op(ROOTDEV);
   iput(p->cwd);
   end_op(ROOTDEV);
@@ -376,6 +393,7 @@ exit(int status)
   p->state = ZOMBIE;
 
   release(&original_parent->lock);
+
 
   // Jump into the scheduler, never to return.
   sched();
@@ -798,8 +816,9 @@ int munmap(void* addr, uint64 length){
   uint64 end_addr = PGROUNDUP((uint64)addr + length);
   if(end_addr == mm_area->end_addr && start_addr == mm_area->start_addr){
     struct file* f = mm_area->file;
-    if(mm_area->flags == MAP_SHARED){
+    if(mm_area->flags == MAP_SHARED && mm_area->prot & PROT_WRITE){
       // 将内存区域写回文件
+      printf("[Kernel] start_addr: %p, length: 0x%x\n", mm_area->start_addr, mm_area->length);
       if(filewrite(f, mm_area->start_addr, mm_area->length) < 0){
         printf("[Kernel] munmap: fail to write back file.\n");
         return -1;
@@ -825,7 +844,7 @@ int munmap(void* addr, uint64 length){
   }else if(end_addr <= mm_area->end_addr && start_addr >= mm_area->start_addr){
     // 此时表示该区域只是一个子区域
     struct file* f = mm_area->file;
-    if(mm_area->flags == MAP_SHARED){
+    if(mm_area->flags == MAP_SHARED && mm_area->prot & PROT_WRITE){
       // 写回文件
       // 获取偏移量
       uint offset = start_addr - mm_area->start_addr;

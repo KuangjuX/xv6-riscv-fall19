@@ -130,7 +130,6 @@ mmap_test(void)
   if (munmap(p, PGSIZE*2) == -1)
     err("munmap (2)");
 
-  printf("[User] mmap_test: check that mmap doesn't allow read/write mapping of a file opened read-only.\n");
   // check that mmap doesn't allow read/write mapping of a
   // file opened read-only.
   if ((fd = open(f, O_RDONLY)) == -1)
@@ -143,7 +142,6 @@ mmap_test(void)
 
   // check that mmap does allow read/write mapping of a
   // file opened read/write.
-  printf("[User] mmap_test: check that mmap does allow read/write mapping of a file opened read/write.\n");
   if ((fd = open(f, O_RDWR)) == -1)
     err("open");
   p = mmap(0, PGSIZE*3, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -172,7 +170,6 @@ mmap_test(void)
     if (read(fd, &b, 1) != 1)
       err("read (1)");
     if (b != 'Z'){
-      printf("[User] mmap_test: index: %d, value is %c\n", i, b);
       err("file does not contain modifications");
     }
   }
@@ -186,7 +183,6 @@ mmap_test(void)
   //
   // mmap two files at the same time.
   //
-  printf("[User] mmap two files at the same time.\n");
   int fd1;
   if((fd1 = open("mmap1", O_RDWR|O_CREATE)) < 0)
     err("open mmap1");
@@ -197,7 +193,6 @@ mmap_test(void)
     err("mmap mmap1");
   close(fd1);
   unlink("mmap1");
-  printf("[User] mmap1.\n");
 
   int fd2;
   if((fd2 = open("mmap2", O_RDWR|O_CREATE)) < 0)
@@ -209,17 +204,14 @@ mmap_test(void)
     err("mmap mmap2");
   close(fd2);
   unlink("mmap2");
-  printf("[User] mmap2.\n");
 
   if(memcmp(p1, "12345", 5) != 0)
     err("mmap1 mismatch");
   if(memcmp(p2, "67890", 5) != 0)
     err("mmap2 mismatch");
 
-  printf("[User] memcmp.\n");
 
   munmap(p1, PGSIZE);
-  printf("[User] munmap1.\n");
   if(memcmp(p2, "67890", 5) != 0)
     err("mmap2 mismatch (2)");
   munmap(p2, PGSIZE);
@@ -256,6 +248,7 @@ fork_test(void)
   // read just 2nd page.
   if(*(p1+PGSIZE) != 'A')
     err("fork mismatch (1)");
+
 
   if((pid = fork()) < 0)
     err("fork");
